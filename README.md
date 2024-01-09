@@ -12,7 +12,7 @@ Intelligent chromosome image analysis using neural network object detection tech
 
 นางสาวสุจีรา 	   	นาคคำ
 
-  
+  👻👻👻👻👻👻👻
 						  
 อาจารย์ที่ปรึกษา
 							  
