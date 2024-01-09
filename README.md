@@ -8,6 +8,7 @@ Intelligent chromosome image analysis using neural network object detection tech
 
 นางสาวสุจีรา 		นาคคำ
 
+
 อาจารย์ที่ปรึกษา
 
 ดร.เปรม จันทร์สว่าง	ที่ปรึกษาหลัก
