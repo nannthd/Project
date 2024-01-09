@@ -11,6 +11,8 @@ Intelligent chromosome image analysis using neural network object detection tech
 นางสาวณัฐธิดา 		สรึมงาม
 
 นางสาวสุจีรา 	   	นาคคำ
+
+
 						  
 อาจารย์ที่ปรึกษา
 							  
