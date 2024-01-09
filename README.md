@@ -2,7 +2,7 @@
 ระบบปัญญาประดิษฐ์สำหรับวิเคราะห์ภาพถ่ายโครโมโซมด้วยเทคนิคการตรวจจับวัตถุด้วยโครงข่ายประสาทเทียมเพื่อการประยุกต์ใช้ด้านการแพทย์
 Intelligent chromosome image analysis using neural network object detection techniques for medical applications.
 
-โดย
+                                                             โดย
 
 นางสาวณัฐธิดา 		สรึมงาม
 
