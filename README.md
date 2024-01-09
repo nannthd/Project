@@ -1,5 +1,5 @@
   # Project
-<h1 align="center">
+<h10 align="center">
   
 
 ระบบปัญญาประดิษฐ์สำหรับวิเคราะห์ภาพถ่ายโครโมโซมด้วยเทคนิคการตรวจจับวัตถุด้วยโครงข่ายประสาทเทียมเพื่อการประยุกต์ใช้ด้านการแพทย์
@@ -20,4 +20,4 @@ Intelligent chromosome image analysis using neural network object detection tech
  
 ผศ.ดร. อัญชลี เตชะเสน	 ที่ปรึกษาร่วม
   
-</h1>
+</h10>
