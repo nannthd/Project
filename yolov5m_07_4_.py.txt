@@ -1,0 +1,218 @@
+!pip install roboflow
+
+import roboflow
+# clone YOLOv5 repository
+!git clone https://github.com/ultralytics/yolov5  # clone repo
+%cd yolov5
+%pip install -qr requirements.txt roboflow #install dependencies
+
+import torch
+import os
+from IPython.display import Image, clear_output  # to display images
+
+print(f"Setup complete. Using torch {torch.__version__} ({torch.cuda.get_device_properties(0) if torch.cuda.is_available() else 'CPU'})")
+
+%cd /content/yolov5
+#after following the link above, recieve python code with these fields filled in
+#from roboflow import Roboflow
+#rf = Roboflow(api_key="YOUR API KEY HERE")
+#project = rf.workspace().project("YOUR PROJECT")
+#dataset = project.version("YOUR VERSION").download("yolov5")
+
+from roboflow import Roboflow
+rf = Roboflow(api_key="GoDp7WoW8c50tAsVTs4e")
+project = rf.workspace("kku-o5mso").project("chromosome-v.2")
+dataset = project.version(3).download("yolov5")
+
+# this is the YAML file Roboflow wrote for us that we're loading into this notebook with our data
+%cat {dataset.location}/data.yaml
+
+# define number of classes based on YAML
+import yaml
+with open(dataset.location + "/data.yaml", 'r') as stream:
+    num_classes = str(yaml.safe_load(stream)['nc'])
+
+#this is the model configuration we will use for our tutorial
+%cat /content/yolov5/models/yolov5m.yaml
+
+#customize iPython writefile so we can write variables
+from IPython.core.magic import register_line_cell_magic
+
+@register_line_cell_magic
+def writetemplate(line, cell):
+    with open(line, 'w') as f:
+        f.write(cell.format(**globals()))
+
+%%writetemplate /content/yolov5/models/custom_yolov5m.yaml
+
+# Parameters
+nc: {num_classes}  # number of classes
+depth_multiple: 0.67  # model depth multiple
+width_multiple: 0.75  # layer channel multiple
+
+# anchors
+anchors:
+  - [10,13, 16,30, 33,23]  # P3/8
+  - [30,61, 62,45, 59,119]  # P4/16
+  - [116,90, 156,198, 373,326]  # P5/32
+
+# YOLOv5 v6.0 backbone
+backbone:
+  # [from, number, module, args]
+  [[-1, 1, Conv, [64, 6, 2, 2]],  # 0-P1/2
+   [-1, 1, Conv, [128, 3, 2]],  # 1-P2/4
+   [-1, 3, C3, [128]],
+   [-1, 1, Conv, [256, 3, 2]],  # 3-P3/8
+   [-1, 6, C3, [256]],
+   [-1, 1, Conv, [512, 3, 2]],  # 5-P4/16
+   [-1, 9, C3, [512]],
+   [-1, 1, Conv, [1024, 3, 2]],  # 7-P5/32
+   [-1, 3, C3, [1024]],
+   [-1, 1, SPPF, [1024, 5]],  # 9
+  ]
+
+# YOLOv5 v6.0 head
+head:
+  [[-1, 1, Conv, [512, 1, 1]],
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],
+   [[-1, 6], 1, Concat, [1]],  # cat backbone P4
+   [-1, 3, C3, [512, False]],  # 13
+
+   [-1, 1, Conv, [256, 1, 1]],
+   [-1, 1, nn.Upsample, [None, 2, 'nearest']],
+   [[-1, 4], 1, Concat, [1]],  # cat backbone P3
+   [-1, 3, C3, [256, False]],  # 17 (P3/8-small)
+
+   [-1, 1, Conv, [256, 3, 2]],
+   [[-1, 14], 1, Concat, [1]],  # cat head P4
+   [-1, 3, C3, [512, False]],  # 20 (P4/16-medium)
+
+   [-1, 1, Conv, [512, 3, 2]],
+   [[-1, 10], 1, Concat, [1]],  # cat head P5
+   [-1, 3, C3, [1024, False]],  # 23 (P5/32-large)
+
+   [[17, 20, 23], 1, Detect, [nc, anchors]],  # Detect(P3, P4, P5)
+  ]
+
+# train yolov5s on custom data for 100 epochs
+# time its performance
+%%time
+%cd /content/yolov5/
+!python train.py --img 640 --batch 16 --epochs 200 --data {dataset.location}/data.yaml --cfg ./models/custom_yolov5m.yaml --weights 'yolov5m.pt' --optimizer SGD --freeze 10 --image-weights --hyp ./data/hyps/hyp.scratch-high.yaml --name yolov5m_results  --cache
+
+# Start tensorboard
+# Launch after you have started training
+# logs save in the folder "runs"
+%load_ext tensorboard
+%tensorboard --logdir runs
+
+# we can also output some older school graphs if the tensor board isn't working for whatever reason...
+from utils.plots import plot_results  # plot results.txt as results.png
+Image(filename='/content/yolov5/runs/train/yolov5m_results/results.png', width=1000)  # view results.png
+
+# first, display our ground truth data
+print("GROUND TRUTH TRAINING DATA:")
+Image(filename='/content/yolov5/runs/train/yolov5m_results/labels.jpg', width=900)
+
+# print out an augmented training example
+print("GROUND TRUTH AUGMENTED TRAINING DATA:")
+Image(filename='/content/yolov5/runs/train/yolov5m_results/train_batch0.jpg', width=900)
+
+# trained weights are saved by default in our weights folder
+%ls runs/
+
+%ls runs/train/yolov5m_results/weights
+
+val_set_loc = dataset.location + "/valid/images/"
+
+%cd /content/yolov5/
+!python detect.py --weights runs/train/yolov5m_results/weights/best.pt --img 640 --conf 0.5 --source {val_set_loc} --save-txt
+
+!python val.py --data /content/yolov5/Chromosome-v.2-3/data.yaml --weights runs/train/yolov5m_results/weights/best.pt --img 640 --iou 0.5 --half
+
+test_set_loc = dataset.location + "/test/images/"
+
+# when we ran this, we saw .007 second inference time. That is 140 FPS on a TESLA P100!
+# use the best weights!
+%cd /content/yolov5/
+!python detect.py --weights runs/train/yolov5m_results/weights/best.pt --img 640 --conf 0.5 --source {test_set_loc}
+
+from PIL import Image
+import glob
+from IPython.display import display
+
+# ฟังก์ชันการลดขนาดของภาพ
+def resize_image(image_path, new_size=(300, 300)):
+    original_image = Image.open(image_path)
+    resized_image = original_image.resize(new_size)
+    return resized_image
+
+# ไดเรกทอรีที่มีภาพทดสอบ
+image_directory = '/content/yolov5/runs/detect/exp/'
+
+# วนลูปผ่านไฟล์ JPG ทั้งหมดในไดเรกทอรี
+for image_path in glob.glob(image_directory + '*.jpg'):
+    # ลดขนาดของภาพ (ตัวเลือก)
+    resized_image = resize_image(image_path, new_size=(300, 300))
+
+    # แสดงภาพที่ลดขนาดแล้ว
+    display(resized_image)
+
+    # พิมพ์บรรทัดใหม่
+    print("\n")
+
+project.version(dataset.version).deploy(model_type="yolov5", model_path=f"/content/yolov5/runs/train/yolov5m_results/")
+
+#While your deployment is processing, checkout the deployment docs to take your model to most destinations https://docs.roboflow.com/inference
+
+#Run inference on your model on a persistant, auto-scaling, cloud API
+
+#load model
+model = project.version(dataset.version).model
+
+#choose random test set image
+import os, random
+test_set_loc = dataset.location + "/test/images/"
+random_test_image = random.choice(os.listdir(test_set_loc))
+print("running inference on " + random_test_image)
+
+model.api_key = "rf_Jn6zV8UGLkXXacfPZXuW5AueMzO2"
+pred = model.predict(test_set_loc + random_test_image, confidence=50, overlap=30).json()
+pred
+
+
+
+%matplotlib inline
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from PIL import Image
+import requests
+from io import BytesIO
+
+# รับข้อมูลการทำนายจาก model.predict
+pred = model.predict(test_set_loc + random_test_image, confidence=50, overlap=30).json()
+
+# ฟังก์ชันสำหรับแสดงภาพพร้อม bounding boxes
+def show_detection_result(image_path, predictions):
+    img = Image.open(image_path)
+    fig, ax = plt.subplots(1)
+    ax.imshow(img)
+
+    for pred in predictions:
+        x, y, w, h = pred['x'], pred['y'], pred['width'], pred['height']
+        confidence = pred['confidence']
+        label = pred['class']
+
+        rect = patches.Rectangle((x, y), w, h, linewidth=1, edgecolor='r', facecolor='none')
+        ax.add_patch(rect)
+        ax.text(x, y, f'{label} {confidence:.2f}', color='r')
+
+    plt.show()
+
+# แสดงผลลัพธ์การตรวจจับเป็นภาพ
+try:
+    show_detection_result(pred['predictions'][0]['image_path'], pred['predictions'])
+except Exception as e:
+    print(f"Error: {e}")
+
